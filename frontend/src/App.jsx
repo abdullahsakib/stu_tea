@@ -1,61 +1,115 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
-function App(){
-  const [questions, setQuestions] = useState([])
-  const [newQ, setNewQ] = useState('')
-  const [answers, setAnswers] = useState({})
-  const [student, setStudent] = useState('')
-  useEffect(()=>{
-    axios.get(import.meta.env.VITE_BACKEND_URL + '/api/questions/')
-      .then(res=> setQuestions(res.data))
-      .catch(err=> console.error(err))
-  },[])
-  const handleAddQuestion = ()=>{
-    if(!newQ.trim()) return
-    axios.post(import.meta.env.VITE_BACKEND_URL + '/api/questions/', { text: newQ })
-      .then(res=> setQuestions([res.data, ...questions]))
-      .catch(err=> console.error(err))
-      .finally(()=> setNewQ(''))
-  }
-  const handleAddAnswer = (qid)=>{
-    const text = answers[qid]
-    if(!text || !text.trim()) return
-    axios.post(import.meta.env.VITE_BACKEND_URL + '/api/answers/', {
-      question: qid,
-      student_name: student || 'Anonymous',
-      text
-    }).then(()=> {
-      return axios.get(import.meta.env.VITE_BACKEND_URL + '/api/questions/')
-    }).then(res=> setQuestions(res.data))
-      .catch(err=> console.error(err))
-      .finally(()=> setAnswers(prev=> ({...prev, [qid]: ''})))
-  }
+import { useState, useEffect } from "react";
+import axios from "axios";
+
+function App() {
+  const [questions, setQuestions] = useState([]);
+  const [newQuestion, setNewQuestion] = useState("");
+  const [answerText, setAnswerText] = useState({}); // প্রতিটি প্রশ্নের উত্তর আলাদা করে রাখবো
+
+  // Backend URL
+  const API_URL = import.meta.env.VITE_BACKEND_URL;
+
+  // সব প্রশ্ন লোড করা
+  const fetchQuestions = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/questions/`);
+      setQuestions(res.data);
+    } catch (err) {
+      console.error("Error fetching questions:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
+
+  // নতুন প্রশ্ন যোগ করা
+  const addQuestion = async () => {
+    if (!newQuestion.trim()) return;
+    try {
+      await axios.post(`${API_URL}/api/questions/`, { text: newQuestion });
+      setNewQuestion("");
+      fetchQuestions(); // আবার রিলোড
+    } catch (err) {
+      console.error("Error adding question:", err);
+    }
+  };
+
+  // উত্তর যোগ করা
+  const addAnswer = async (qid) => {
+    if (!answerText[qid]?.trim()) return;
+    try {
+      await axios.post(`${API_URL}/api/questions/${qid}/answers/`, {
+        text: answerText[qid],
+      });
+      setAnswerText((prev) => ({ ...prev, [qid]: "" }));
+      fetchQuestions(); // আবার রিলোড
+    } catch (err) {
+      console.error("Error adding answer:", err);
+    }
+  };
+
   return (
-    <div style={{maxWidth:800, margin:'20px auto', padding:10}}>
-      <h1>Teacher - Student Q&A</h1>
-      <div style={{marginBottom:20}}>
-        <input placeholder="Your name (optional)" value={student} onChange={e=>setStudent(e.target.value)} />
+    <div style={{ padding: "20px", fontFamily: "Arial" }}>
+      <h1>Teacher–Student Q&A</h1>
+
+      {/* Teacher Add Question */}
+      <div style={{ marginBottom: "20px" }}>
+        <h2>Add Question</h2>
+        <input
+          type="text"
+          value={newQuestion}
+          onChange={(e) => setNewQuestion(e.target.value)}
+          placeholder="Write a question..."
+          style={{ padding: "8px", width: "300px" }}
+        />
+        <button onClick={addQuestion} style={{ marginLeft: "10px", padding: "8px" }}>
+          Submit
+        </button>
       </div>
-      <div style={{display:'flex', gap:8, marginBottom:20}}>
-        <input style={{flex:1}} placeholder="Add a question..." value={newQ} onChange={e=>setNewQ(e.target.value)} />
-        <button onClick={handleAddQuestion}>Add Question</button>
-      </div>
-      {questions.map(q=>(
-        <div key={q.id} style={{border:'1px solid #ddd', padding:10, marginBottom:12}}>
-          <h3>{q.text}</h3>
-          <small>Created: {new Date(q.created_at).toLocaleString()}</small>
-          <ul>
-            {q.answers.map(a=>(
-              <li key={a.id}><b>{a.student_name}:</b> {a.text}</li>
-            ))}
-          </ul>
-          <div style={{display:'flex', gap:8, marginTop:8}}>
-            <input style={{flex:1}} placeholder="Write answer..." value={answers[q.id]||''} onChange={e=>setAnswers({...answers, [q.id]: e.target.value})} />
-            <button onClick={()=>handleAddAnswer(q.id)}>Submit</button>
-          </div>
-        </div>
-      ))}
+
+      {/* Question List */}
+      <h2>All Questions</h2>
+      {questions.length === 0 && <p>No questions yet.</p>}
+      <ul>
+        {questions.map((q) => (
+          <li key={q.id} style={{ marginBottom: "20px" }}>
+            <strong>{q.text}</strong>
+
+            {/* Show answers */}
+            <ul>
+              {q.answers.length === 0 ? (
+                <li>No answers yet.</li>
+              ) : (
+                q.answers.map((a) => (
+                  <li key={a.id} style={{ marginLeft: "15px" }}>
+                    {a.text}
+                  </li>
+                ))
+              )}
+            </ul>
+
+            {/* Student add answer */}
+            <input
+              type="text"
+              value={answerText[q.id] || ""}
+              onChange={(e) =>
+                setAnswerText((prev) => ({ ...prev, [q.id]: e.target.value }))
+              }
+              placeholder="Write your answer..."
+              style={{ padding: "6px", width: "250px" }}
+            />
+            <button
+              onClick={() => addAnswer(q.id)}
+              style={{ marginLeft: "10px", padding: "6px" }}
+            >
+              Answer
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
-  )
+  );
 }
-export default App
+
+export default App;
